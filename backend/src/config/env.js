@@ -16,7 +16,7 @@ const env = {
   APP_BASE_URL: optional('APP_BASE_URL', 'http://localhost:3001'),
 
   // Meta / WhatsApp
-  META_GRAPH_API_VERSION: optional('META_GRAPH_API_VERSION', 'v20.0'),
+  META_GRAPH_API_VERSION: optional('META_GRAPH_API_VERSION', 'v25.0'),
   META_ACCESS_TOKEN: optional('META_ACCESS_TOKEN'),
   META_VERIFY_TOKEN: optional('META_VERIFY_TOKEN'),
   META_APP_ID: optional('META_APP_ID'),
