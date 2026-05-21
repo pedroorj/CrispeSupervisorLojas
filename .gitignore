@@ -1,0 +1,28 @@
+# Environment files — NEVER commit
+.env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Prisma generated
+backend/node_modules/

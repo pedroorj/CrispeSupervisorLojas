@@ -1,0 +1,63 @@
+name: Deploy to Hostinger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # === Build Frontend ===
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+      # === Install backend dependencies ===
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci --production
+
+      # === Deploy via SSH ===
+      # Requires secrets: HOSTINGER_HOST, HOSTINGER_USER, HOSTINGER_SSH_KEY, HOSTINGER_PORT, HOSTINGER_PATH
+      - name: Deploy to Hostinger via rsync
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -avz --delete --exclude='.env' --exclude='node_modules' --exclude='.git'
+          path: .
+          remote_path: ${{ secrets.HOSTINGER_PATH }}
+          remote_host: ${{ secrets.HOSTINGER_HOST }}
+          remote_port: ${{ secrets.HOSTINGER_PORT }}
+          remote_user: ${{ secrets.HOSTINGER_USER }}
+          remote_key: ${{ secrets.HOSTINGER_SSH_KEY }}
+
+      # === Post-deploy: migrate DB and restart app ===
+      - name: Run migrations and restart app
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USER }}
+          key: ${{ secrets.HOSTINGER_SSH_KEY }}
+          port: ${{ secrets.HOSTINGER_PORT }}
+          script: |
+            cd ${{ secrets.HOSTINGER_PATH }}/backend
+            npm install --production
+            npx prisma generate
+            npx prisma migrate deploy
+            pm2 restart whatsapp-supervisor || pm2 start src/server.js --name whatsapp-supervisor --env production
+            pm2 save
