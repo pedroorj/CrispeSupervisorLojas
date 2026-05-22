@@ -64,6 +64,15 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  // Polling fallback: refresh messages every 5s while this conversation is open.
+  // SSE is the primary real-time path, but LiteSpeed may drop the connection or
+  // the server may restart — polling ensures messages always appear within 5s.
+  useEffect(() => {
+    if (!conv?.id) return;
+    const t = setInterval(loadMessages, 5000);
+    return () => clearInterval(t);
+  }, [conv?.id, loadMessages]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
