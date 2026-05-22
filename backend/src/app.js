@@ -20,6 +20,9 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
+// Trust Hostinger's LiteSpeed reverse proxy
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(
   helmet({
