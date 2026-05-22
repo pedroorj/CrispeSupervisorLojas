@@ -9,6 +9,21 @@ const { startUnansweredAlertJob } = require('./jobs/unansweredAlertJob');
 
 const PORT = env.PORT;
 
+// Hostinger shared hosting emits "PANIC: timer has gone away" from libuv internals.
+// Catching it here prevents the process from crashing — the server keeps running normally.
+process.on('uncaughtException', (err) => {
+  if (err && err.message && err.message.includes('PANIC')) {
+    console.warn('[Server] Suppressed known Hostinger timer warning:', err.message);
+    return; // do NOT exit — server is healthy
+  }
+  console.error('[Server] Uncaught exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});
+
 async function start() {
   try {
     await prisma.$connect();
@@ -21,7 +36,6 @@ async function start() {
 
     startUnansweredAlertJob();
 
-    // Graceful shutdown
     const shutdown = async (signal) => {
       console.log(`[Server] ${signal} received — shutting down.`);
       server.close(async () => {
