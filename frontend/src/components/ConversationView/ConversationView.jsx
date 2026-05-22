@@ -71,13 +71,18 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
   // Handle SSE events
   useEffect(() => {
     if (!realtimeEvent || !conv) return;
-    if (
-      realtimeEvent.type === 'new_message' &&
-      realtimeEvent.data?.conversationId === conv.id
-    ) {
+
+    const sameConv =
+      String(realtimeEvent.data?.conversationId) === String(conv.id);
+
+    if (sameConv && (
+      realtimeEvent.type === 'new_message' ||
+      realtimeEvent.type === 'conversation_updated'
+    )) {
       loadMessages();
       loadConversation();
     }
+
     if (realtimeEvent.type === 'message_status_updated') {
       setMessages((prev) =>
         prev.map((m) =>
