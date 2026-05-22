@@ -94,7 +94,7 @@ export default function Dashboard() {
         <DashboardCards refreshTrigger={cardsTrigger} />
 
         {/* Conversation list */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <ConversationList
             selectedId={selectedConv?.id}
             onSelect={handleSelect}
