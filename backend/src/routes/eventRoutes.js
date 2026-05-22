@@ -20,17 +20,20 @@ router.get('/', (req, res) => {
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable Nginx buffering
+  res.setHeader('X-Accel-Buffering', 'no'); // Nginx
+  res.setHeader('X-LiteSpeed-Cache', 'no'); // LiteSpeed
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.flushHeaders();
 
   realtimeService.addClient(userId, res);
 
-  // Heartbeat every 30s to keep connection alive through proxies
+  // Heartbeat every 15s to keep connection alive through LiteSpeed/proxies
   const heartbeat = setInterval(() => {
     try { res.write(':heartbeat\n\n'); } catch { clearInterval(heartbeat); }
-  }, 30000);
+  }, 15000);
 
   req.on('close', () => {
     clearInterval(heartbeat);

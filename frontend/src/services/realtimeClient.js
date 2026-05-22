@@ -1,9 +1,18 @@
 // Server-Sent Events client
 let eventSource = null;
-const handlers = {};
+let reconnectTimer = null;
+let lastOnEvent = null;
 
 export function connectSSE(token, onEvent) {
-  if (eventSource) eventSource.close();
+  lastOnEvent = onEvent;
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
 
   const url = `/api/events?token=${encodeURIComponent(token)}`;
   eventSource = new EventSource(url);
@@ -21,17 +30,23 @@ export function connectSSE(token, onEvent) {
   });
 
   eventSource.onerror = () => {
-    // Auto-reconnect after 5s
-    setTimeout(() => {
+    eventSource?.close();
+    eventSource = null;
+    // Reconnect after 3s
+    reconnectTimer = setTimeout(() => {
       const t = localStorage.getItem('token');
-      if (t) connectSSE(t, onEvent);
-    }, 5000);
+      if (t && lastOnEvent) connectSSE(t, lastOnEvent);
+    }, 3000);
   };
 
-  return () => eventSource?.close();
+  return () => {
+    eventSource?.close();
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+  };
 }
 
 export function disconnectSSE() {
   eventSource?.close();
   eventSource = null;
+  if (reconnectTimer) clearTimeout(reconnectTimer);
 }
