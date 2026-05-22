@@ -30,13 +30,22 @@ router.get('/', (req, res) => {
 
   realtimeService.addClient(userId, res);
 
-  // Heartbeat every 15s to keep connection alive through LiteSpeed/proxies
-  const heartbeat = setInterval(() => {
-    try { res.write(':heartbeat\n\n'); } catch { clearInterval(heartbeat); }
-  }, 15000);
+  // Heartbeat every 15s — self-rescheduling setTimeout instead of setInterval.
+  // Each connected SSE client used to hold a permanent setInterval handle.
+  // On Hostinger shared hosting the timerfd limit is low; multiple clients
+  // would exhaust it and trigger PANIC. setTimeout releases the handle after
+  // each fire, so each client holds at most one timerfd slot at a time.
+  let heartbeatTimer = null;
+  function scheduleHeartbeat() {
+    heartbeatTimer = setTimeout(() => {
+      try { res.write(':heartbeat\n\n'); } catch {}
+      if (!res.writableEnded) scheduleHeartbeat();
+    }, 15000);
+  }
+  scheduleHeartbeat();
 
   req.on('close', () => {
-    clearInterval(heartbeat);
+    if (heartbeatTimer) clearTimeout(heartbeatTimer);
     realtimeService.removeClient(userId, res);
   });
 });

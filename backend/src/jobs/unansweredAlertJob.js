@@ -1,7 +1,10 @@
 'use strict';
 
 // node-cron is incompatible with Hostinger shared hosting (PANIC: timer has gone away).
-// Using setInterval instead — same behavior, no native timer dependencies.
+// setInterval also holds a libuv timer handle permanently, consuming one timerfd slot.
+// Hostinger shared hosting has a very low timerfd limit — exhausting it triggers PANIC.
+// Self-rescheduling setTimeout releases the handle after each fire, so at most 1 slot
+// is active at any moment instead of a permanent reservation.
 
 const prisma = require('../db/prismaClient');
 const { notifyUnanswered } = require('../services/pushNotificationService');
@@ -37,12 +40,15 @@ async function runAlertCheck() {
 }
 
 function startUnansweredAlertJob() {
-  setInterval(() => {
-    runAlertCheck().catch((err) =>
-      console.error('[UnansweredAlertJob] Unhandled error:', err.message)
-    );
-  }, 5 * 60 * 1000);
-
+  function scheduleNext() {
+    setTimeout(async () => {
+      await runAlertCheck().catch((err) =>
+        console.error('[UnansweredAlertJob] Error:', err.message)
+      );
+      scheduleNext();
+    }, 5 * 60 * 1000);
+  }
+  scheduleNext();
   console.log('[Jobs] Unanswered alert job started (every 5 minutes).');
 }
 
