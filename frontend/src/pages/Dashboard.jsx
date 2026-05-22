@@ -93,12 +93,15 @@ export default function Dashboard() {
         {/* Dashboard cards */}
         <DashboardCards refreshTrigger={cardsTrigger} />
 
-        {/* Conversation list — fills the 1fr grid row, handles its own scroll */}
-        <ConversationList
-          selectedId={selectedConv?.id}
-          onSelect={handleSelect}
-          realtimeEvent={realtimeEvent}
-        />
+        {/* sidebar-list-area: flex:1 + overflow:hidden creates the BFC that
+            makes ConversationList's height:100% resolve correctly */}
+        <div className="sidebar-list-area">
+          <ConversationList
+            selectedId={selectedConv?.id}
+            onSelect={handleSelect}
+            realtimeEvent={realtimeEvent}
+          />
+        </div>
       </div>
 
       {/* Main panel */}

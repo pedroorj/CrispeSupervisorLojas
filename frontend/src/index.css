@@ -80,14 +80,21 @@ input, textarea, select { font: inherit; }
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100%;
-  /* CSS Grid: header=auto, cards=auto, conversation-list=all-remaining space.
-     More reliable than nested flex — the 1fr row gives the list an explicit
-     pixel height so overflow-y:auto on the list actually activates. */
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
+}
+
+/* Fills all remaining sidebar space after header + cards.
+   overflow:hidden creates a block formatting context so that the
+   child ConversationList's height:100% resolves to this element's
+   computed height — the key trick for flex scroll to work. */
+.sidebar-list-area {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .main-panel {

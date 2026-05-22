@@ -47,7 +47,7 @@ export default function ConversationList({ selectedId, onSelect, realtimeEvent }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Search bar */}
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <input
           className="input"
           placeholder="🔍 Buscar conversa..."
@@ -58,10 +58,12 @@ export default function ConversationList({ selectedId, onSelect, realtimeEvent }
       </div>
 
       {/* Store filter */}
-      <StoreFilter value={storeId} onChange={setStoreId} />
+      <div style={{ flexShrink: 0 }}>
+        <StoreFilter value={storeId} onChange={setStoreId} />
+      </div>
 
       {/* Status filter */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <select
           className="input"
           value={status}
