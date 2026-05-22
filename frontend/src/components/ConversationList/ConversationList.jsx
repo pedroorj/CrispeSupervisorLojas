@@ -36,10 +36,9 @@ export default function ConversationList({ selectedId, onSelect, realtimeEvent }
 
   useEffect(() => { load(); }, [load]);
 
-  // Polling fallback every 10s — SSE is unreliable on Hostinger LiteSpeed.
-  // SSE still triggers an instant reload when it works; this covers the gaps.
+  // Polling fallback every 5s — same cadence as ConversationView.
   useEffect(() => {
-    const t = setInterval(load, 10000);
+    const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [load]);
 

@@ -20,11 +20,18 @@ function formatTime(seconds) {
 export default function DashboardCards({ refreshTrigger }) {
   const [data, setData] = useState(null);
 
-  useEffect(() => {
+  const load = () => {
     api.get('/reports/summary')
       .then(({ data }) => setData(data))
       .catch(console.error);
-  }, [refreshTrigger]);
+  };
+
+  useEffect(() => { load(); }, [refreshTrigger]);
+
+  useEffect(() => {
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, []);
 
   return (
     <div className="cards-grid">
