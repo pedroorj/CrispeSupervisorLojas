@@ -36,7 +36,14 @@ export default function ConversationList({ selectedId, onSelect, realtimeEvent }
 
   useEffect(() => { load(); }, [load]);
 
-  // React to SSE events
+  // Polling fallback every 10s — SSE is unreliable on Hostinger LiteSpeed.
+  // SSE still triggers an instant reload when it works; this covers the gaps.
+  useEffect(() => {
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  // React to SSE events (instant update when SSE is working)
   useEffect(() => {
     if (!realtimeEvent) return;
     if (realtimeEvent.type === 'new_message' || realtimeEvent.type === 'conversation_updated') {
