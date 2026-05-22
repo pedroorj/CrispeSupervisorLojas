@@ -1,6 +1,10 @@
+import { clientsClaim } from 'workbox-core';
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching';
 import { registerRoute } from 'workbox-routing';
 import { NetworkFirst, CacheFirst } from 'workbox-strategies';
+
+// Take control of all clients immediately on activation — no waiting for tabs to close
+clientsClaim();
 
 // Precache assets injected by Vite PWA plugin
 precacheAndRoute(self.__WB_MANIFEST);
@@ -63,7 +67,9 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Skip waiting on update
+// Skip waiting immediately on install — new SW activates without requiring app restart
+self.addEventListener('install', () => self.skipWaiting());
+
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
