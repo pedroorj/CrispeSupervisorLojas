@@ -45,7 +45,7 @@ export default function ConversationList({ selectedId, onSelect, realtimeEvent }
   }, [realtimeEvent, load]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Search bar */}
       <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
         <input

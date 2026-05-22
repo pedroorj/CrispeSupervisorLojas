@@ -93,14 +93,12 @@ export default function Dashboard() {
         {/* Dashboard cards */}
         <DashboardCards refreshTrigger={cardsTrigger} />
 
-        {/* Conversation list */}
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <ConversationList
-            selectedId={selectedConv?.id}
-            onSelect={handleSelect}
-            realtimeEvent={realtimeEvent}
-          />
-        </div>
+        {/* Conversation list — fills the 1fr grid row, handles its own scroll */}
+        <ConversationList
+          selectedId={selectedConv?.id}
+          onSelect={handleSelect}
+          realtimeEvent={realtimeEvent}
+        />
       </div>
 
       {/* Main panel */}
