@@ -53,10 +53,6 @@ function checkCanSend({ conversation, messageType = 'text', isTemplate = false, 
     }
   }
 
-  // MVP: text only
-  if (messageType !== 'text') {
-    block('No modo gratuito do MVP, apenas texto livre dentro da janela de 24h é permitido.');
-  }
 }
 
 module.exports = { checkCanSend, MessageBlockedError };
