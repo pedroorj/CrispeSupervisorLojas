@@ -5,23 +5,100 @@ import api from '../../services/apiClient';
 import FreeWindowBadge from '../FreeWindowBadge/FreeWindowBadge';
 import StatusBadge from '../StatusBadge/StatusBadge';
 
-const BLOCK_MSG = 'Envio bloqueado para evitar cobrança. Este cliente não enviou mensagem nas últimas 24 horas ou a ação exigiria template/mensagem ativa. Para manter o modo gratuito, o sistema não permite iniciar conversa, enviar template, enviar marketing ou enviar mensagens fora da janela gratuita.';
+const ACCEPTED_TYPES = [
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'video/mp4', 'video/3gp',
+  'audio/mpeg', 'audio/ogg', 'audio/aac', 'audio/mp4',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+].join(',');
 
-function MessageItem({ msg }) {
+function getMediaType(mimeType) {
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
+const MEDIA_ICONS = { image: '🖼️', video: '🎬', audio: '🎵', document: '📄' };
+const MEDIA_LABELS = { image: 'Imagem', video: 'Vídeo', audio: 'Áudio', document: 'Documento' };
+
+// Fetches media from backend proxy and renders as blob URL
+function MediaBubble({ msg, convId }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl;
+    if (!msg.mediaId) { setLoading(false); setError(true); return; }
+
+    api.get(`/conversations/${convId}/messages/${msg.id}/media`, { responseType: 'blob', timeout: 30000 })
+      .then(({ data }) => {
+        objectUrl = URL.createObjectURL(data);
+        setBlobUrl(objectUrl);
+      })
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+
+    return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [msg.id, convId, msg.mediaId]);
+
+  if (loading) {
+    return (
+      <div className="msg-media-loading">
+        <span className="media-spinner" /> {MEDIA_LABELS[msg.type] || 'Mídia'}...
+      </div>
+    );
+  }
+  if (error || !blobUrl) {
+    return (
+      <div className="msg-media-error">
+        {MEDIA_ICONS[msg.type] || '📎'} Mídia indisponível
+      </div>
+    );
+  }
+
+  if (msg.type === 'image') {
+    return (
+      <a href={blobUrl} target="_blank" rel="noopener noreferrer">
+        <img src={blobUrl} alt="Imagem" className="msg-media-img" />
+      </a>
+    );
+  }
+  if (msg.type === 'video') {
+    return <video src={blobUrl} controls className="msg-media-video" />;
+  }
+  if (msg.type === 'audio') {
+    return <audio src={blobUrl} controls className="msg-media-audio" />;
+  }
+  // document
+  return (
+    <a href={blobUrl} download={msg.mediaFilename || 'documento'} className="msg-media-doc">
+      📄 <span>{msg.mediaFilename || 'Documento'}</span>
+    </a>
+  );
+}
+
+function MessageItem({ msg, convId }) {
   const isOut = msg.direction === 'outbound';
   const time = format(new Date(msg.timestamp), 'HH:mm', { locale: ptBR });
+  const isMedia = msg.type !== 'text' && msg.type !== 'unknown';
 
-  const statusIcon = {
-    sent: '✓',
-    delivered: '✓✓',
-    read: '✓✓',
-    failed: '✗',
-    received: '',
-  }[msg.status] || '';
+  const statusIcon = { sent: '✓', delivered: '✓✓', read: '✓✓', failed: '✗', received: '' }[msg.status] || '';
 
   return (
     <div className={`msg-bubble ${isOut ? 'msg-outbound' : 'msg-inbound'}`}>
-      <div>{msg.textBody || <em style={{ color: '#999' }}>[{msg.type}]</em>}</div>
+      {isMedia
+        ? <MediaBubble msg={msg} convId={convId} />
+        : <div>{msg.textBody || <em style={{ color: '#999' }}>[{msg.type}]</em>}</div>
+      }
+      {isMedia && msg.textBody && (
+        <div style={{ marginTop: 4, fontSize: 13 }}>{msg.textBody}</div>
+      )}
       <span className="msg-time">
         {time} {isOut && <span style={{ color: msg.status === 'read' ? '#34B7F1' : '#aaa' }}>{statusIcon}</span>}
       </span>
@@ -36,7 +113,9 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
   const [sending, setSending] = useState(false);
   const [blockError, setBlockError] = useState('');
   const [sendError, setSendError] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null); // { file, preview, type }
   const bottomRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const canReply = conv?.freeWindowExpiresAt && new Date() < new Date(conv.freeWindowExpiresAt);
 
@@ -60,6 +139,7 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
     setText('');
     setBlockError('');
     setSendError('');
+    clearFile();
   }, [initialConv?.id]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
@@ -77,7 +157,6 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle SSE events
   useEffect(() => {
     if (!realtimeEvent || !conv) return;
 
@@ -95,24 +174,57 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
     if (realtimeEvent.type === 'message_status_updated') {
       setMessages((prev) =>
         prev.map((m) =>
-          m.metaMessageId === realtimeEvent.data.metaMessageId
-            ? { ...m, status: realtimeEvent.data.status }
-            : m
+          m.metaMessageId === realtimeEvent.data.metaMessageId ? { ...m, status: realtimeEvent.data.status } : m
         )
       );
     }
   }, [realtimeEvent, conv, loadMessages, loadConversation]);
 
+  function clearFile() {
+    setSelectedFile((prev) => {
+      if (prev?.preview) URL.revokeObjectURL(prev.preview);
+      return null;
+    });
+  }
+
+  function handleFileSelect(e) {
+    const f = e.target.files[0];
+    if (!f) return;
+    const mediaType = getMediaType(f.mimetype || f.type);
+    const preview = mediaType === 'image' ? URL.createObjectURL(f) : null;
+    setSelectedFile({ file: f, preview, type: mediaType });
+    setSendError('');
+    e.target.value = '';
+  }
+
   const handleSend = async () => {
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !selectedFile) || sending) return;
     setSending(true);
     setBlockError('');
     setSendError('');
 
     try {
-      const { data } = await api.post(`/conversations/${conv.id}/messages`, { text: text.trim() });
-      setMessages((prev) => [...prev, data.message]);
+      let responseData;
+
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append('file', selectedFile.file);
+        formData.append('type', selectedFile.type);
+        if (text.trim()) formData.append('caption', text.trim());
+
+        const { data } = await api.post(`/conversations/${conv.id}/messages`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: 60000,
+        });
+        responseData = data;
+      } else {
+        const { data } = await api.post(`/conversations/${conv.id}/messages`, { text: text.trim() });
+        responseData = data;
+      }
+
+      setMessages((prev) => [...prev, responseData.message]);
       setText('');
+      clearFile();
       loadConversation();
     } catch (err) {
       const errMsg = err.response?.data?.error || 'Erro ao enviar mensagem.';
@@ -135,7 +247,7 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !selectedFile) {
       e.preventDefault();
       handleSend();
     }
@@ -159,22 +271,16 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Header */}
       <div className="header" style={{ gap: 10 }}>
-        {/* Back button (mobile only) */}
-        <button className="btn btn-icon btn-ghost back-btn" style={{ color: '#fff' }} onClick={onBack}>
-          ←
-        </button>
-
+        <button className="btn btn-icon btn-ghost back-btn" style={{ color: '#fff' }} onClick={onBack}>←</button>
         <div className="avatar" style={{ width: 38, height: 38, fontSize: 15, flexShrink: 0 }}>
           {contactName[0]?.toUpperCase()}
         </div>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 15 }} className="truncate">{contactName}</div>
           <div style={{ fontSize: 12, opacity: 0.85 }} className="truncate">
             {conv.store?.displayName} · {conv.contact?.phoneNumber}
           </div>
         </div>
-
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <StatusBadge status={conv.status} />
           {conv.status !== 'resolved' && (
@@ -186,10 +292,7 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
       </div>
 
       {/* Free window banner */}
-      <FreeWindowBadge
-        freeWindowExpiresAt={conv.freeWindowExpiresAt}
-        lastCustomerMessageAt={conv.lastCustomerMessageAt}
-      />
+      <FreeWindowBadge freeWindowExpiresAt={conv.freeWindowExpiresAt} lastCustomerMessageAt={conv.lastCustomerMessageAt} />
 
       {/* Messages */}
       <div className="chat-area">
@@ -199,7 +302,7 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
           </div>
         )}
         {messages.map((msg) => (
-          <MessageItem key={msg.id} msg={msg} />
+          <MessageItem key={msg.id} msg={msg} convId={conv.id} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -218,14 +321,51 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
         </div>
       )}
 
+      {/* File preview */}
+      {selectedFile && (
+        <div className="file-preview-box">
+          {selectedFile.preview
+            ? <img src={selectedFile.preview} alt="preview" className="file-preview-img" />
+            : <div className="file-preview-icon">{MEDIA_ICONS[selectedFile.type]}</div>
+          }
+          <div className="file-preview-info">
+            <span className="file-preview-name">{selectedFile.file.name}</span>
+            <span className="file-preview-size">{(selectedFile.file.size / 1024).toFixed(0)} KB · {MEDIA_LABELS[selectedFile.type]}</span>
+          </div>
+          <button className="file-preview-remove" onClick={clearFile} aria-label="Remover arquivo">✕</button>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="chat-input-area">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ACCEPTED_TYPES}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
+
+        {/* Attach button */}
+        <button
+          className="btn btn-icon btn-ghost attach-btn"
+          disabled={!canReply || sending}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Anexar arquivo"
+          title="Enviar imagem, vídeo, áudio ou documento"
+        >
+          📎
+        </button>
+
         <textarea
           rows={1}
           placeholder={
-            canReply
-              ? 'Digite uma mensagem... (Enter para enviar)'
-              : 'Resposta bloqueada — janela gratuita expirada ou sem mensagem do cliente'
+            selectedFile
+              ? 'Legenda (opcional)...'
+              : canReply
+                ? 'Digite uma mensagem... (Enter para enviar)'
+                : 'Resposta bloqueada — janela gratuita expirada ou sem mensagem do cliente'
           }
           disabled={!canReply || sending}
           value={text}
@@ -236,10 +376,11 @@ export default function ConversationView({ conversation: initialConv, realtimeEv
             e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
           }}
         />
+
         <button
           className="btn btn-primary btn-icon"
           style={{ width: 44, height: 44, borderRadius: '50%', flexShrink: 0 }}
-          disabled={!canReply || !text.trim() || sending}
+          disabled={!canReply || (!text.trim() && !selectedFile) || sending}
           onClick={handleSend}
           aria-label="Enviar"
         >
